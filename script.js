@@ -1,7 +1,5 @@
 // Define all roll numbers with actual student data
 const allRollNumbers = [];
-const studentData = {};
-
 // Add roll numbers from 127 to 189, excluding 146
 for (let i = 127; i <= 189; i++) {
     if (i !== 146) {
@@ -87,7 +85,6 @@ const studentNames = {
 let markedStudents = new Set();
 
 // Poll results from screenshots
-let pollResults = [];
 let uploadedFiles = [];
 
 // DOM Elements
@@ -106,6 +103,7 @@ const notification = document.getElementById('notification');
 const screenshotInput = document.getElementById('screenshotInput');
 const extractBtn = document.getElementById('extractBtn');
 const uploadLabel = document.querySelector('.upload-label');
+const ocrStatus = document.getElementById('ocrStatus');
 
 // Initialize the page
 function init() {
@@ -267,10 +265,10 @@ exportBtn.addEventListener('click', () => {
 screenshotInput.addEventListener('change', (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) {
-        uploadedFiles = files;
+        uploadedFiles = [...uploadedFiles, ...files];
         extractBtn.disabled = false;
         updateUploadLabel();
-        showNotification(`${files.length} image(s) selected`, 'info');
+        showNotification(`${files.length} image(s) selected (Total: ${uploadedFiles.length})`, 'info');
     }
 });
 
@@ -304,6 +302,19 @@ function updateUploadLabel() {
     uploadLabel.textContent = `📸 ${uploadedFiles.length} image(s) selected`;
 }
 
+function setOcrStatus(message = '') {
+    ocrStatus.textContent = message;
+}
+
+function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+        reader.readAsDataURL(file);
+    });
+}
+
 // Extract roll numbers from screenshots
 extractBtn.addEventListener('click', async () => {
     if (uploadedFiles.length === 0) {
@@ -313,58 +324,62 @@ extractBtn.addEventListener('click', async () => {
     
     extractBtn.disabled = true;
     extractBtn.textContent = 'Processing...';
+    setOcrStatus(`Starting OCR for ${uploadedFiles.length} image(s)...`);
     
     let totalExtracted = new Set();
     
     try {
-        for (let i = 0; i < uploadedFiles.length; i++) {
-            const file = uploadedFiles[i];
-            const reader = new FileReader();
-            
-            reader.onload = async (e) => {
-                const imageData = e.target.result;
-                
-                try {
-                    const result = await Tesseract.recognize(imageData, 'eng', {
-                        logger: m => console.log('OCR Progress:', m.progress)
-                    });
-                    
-                    const text = result.data.text;
-                    const extractedRolls = extractRollNumbers(text);
-                    
-                    extractedRolls.forEach(roll => {
-                        if (allRollNumbers.includes(roll)) {
-                            markedStudents.add(roll);
-                            totalExtracted.add(roll);
+        const totalFiles = uploadedFiles.length;
+        let processedFiles = 0;
+
+        for (const file of uploadedFiles) {
+            try {
+                const imageData = await readFileAsDataURL(file);
+                setOcrStatus(`Processing ${processedFiles + 1}/${totalFiles}: ${file.name}`);
+                const result = await Tesseract.recognize(imageData, 'eng', {
+                    logger: m => {
+                        if (typeof m.progress === 'number') {
+                            const percent = Math.round(m.progress * 100);
+                            setOcrStatus(`Processing ${processedFiles + 1}/${totalFiles}: ${file.name} (${percent}%)`);
                         }
-                    });
-                    
-                    if (extractedRolls.length > 0) {
-                        showNotification(`Extracted ${extractedRolls.length} roll(s) from ${file.name}`, 'success');
                     }
-                } catch (err) {
-                    console.error('OCR Error:', err);
-                    showNotification(`Error processing ${file.name}`, 'error');
+                });
+
+                const text = result.data.text;
+                const extractedRolls = extractRollNumbers(text);
+
+                extractedRolls.forEach(roll => {
+                    markedStudents.add(roll);
+                    totalExtracted.add(roll);
+                });
+
+                if (extractedRolls.length > 0) {
+                    showNotification(`Extracted ${extractedRolls.length} roll(s) from ${file.name}`, 'success');
+                } else {
+                    showNotification(`No valid roll found in ${file.name}`, 'info');
                 }
-            };
-            
-            reader.readAsDataURL(file);
+            } catch (err) {
+                console.error('OCR Error:', err);
+                showNotification(`Error processing ${file.name}`, 'error');
+            } finally {
+                processedFiles += 1;
+            }
         }
-        
-        setTimeout(() => {
-            uploadedFiles = [];
-            screenshotInput.value = '';
-            extractBtn.disabled = true;
-            extractBtn.textContent = 'Extract from Screenshot';
-            uploadLabel.textContent = '📸 Upload poll screenshot or mark manually';
-            updateDisplay();
-            showNotification(`Total marked: ${totalExtracted.size}`, 'success');
-        }, 3000);
+
+        uploadedFiles = [];
+        screenshotInput.value = '';
+        extractBtn.disabled = true;
+        extractBtn.textContent = 'Extract from Screenshot';
+        uploadLabel.textContent = '📸 Upload poll screenshot or mark manually';
+        updateDisplay();
+        setOcrStatus(`Done. Processed ${processedFiles}/${totalFiles} image(s).`);
+        showNotification(`Total newly marked from upload: ${totalExtracted.size}`, 'success');
         
     } catch (err) {
         showNotification(`Error: ${err.message}`, 'error');
         extractBtn.disabled = false;
         extractBtn.textContent = 'Extract from Screenshot';
+        setOcrStatus('Extraction stopped due to an unexpected error.');
     }
 });
 
@@ -374,10 +389,10 @@ function extractRollNumbers(text) {
     const rolls = new Set();
     
     lines.forEach(line => {
-        // Match numbers in the valid range: 127-189, 302, 304
+        // Match only exact roll numbers to avoid partial matches.
         allRollNumbers.forEach(validRoll => {
-            const rollStr = validRoll.toString();
-            if (line.includes(rollStr)) {
+            const pattern = new RegExp(`\\b${validRoll}\\b`);
+            if (pattern.test(line)) {
                 rolls.add(validRoll);
             }
         });
