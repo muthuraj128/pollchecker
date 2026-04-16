@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poll Checker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Poll Checker</h1>
+        
+        <div class="upload-section">
+            <div class="upload-box">
+                <input type="file" id="screenshotInput" accept="image/*" multiple>
+                <label for="screenshotInput" class="upload-label">
+                    <span>📸 Upload poll screenshot or mark manually</span>
+                </label>
+            </div>
+            <button id="extractBtn" class="btn extract-btn" disabled>Extract from Screenshot</button>
+        </div>
+
+        <div class="manual-input">
+            <input type="number" id="rollInput" placeholder="Enter Roll Number (127-189, 302, 304)" autofocus>
+            <button id="markBtn" class="btn mark-btn">Mark</button>
+            <p class="hint">Press Enter or click Mark button</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-box marked-stat">
+                <span id="markedCount">0</span>
+                <p>Marked</p>
+            </div>
+            <div class="stat-box not-marked-stat">
+                <span id="notMarkedCount">64</span>
+                <p>Not Marked</p>
+            </div>
+            <div class="stat-box total-stat">
+                <span id="totalCount">64</span>
+                <p>Total</p>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button id="resetBtn" class="btn reset-btn">Reset All</button>
+            <button id="exportBtn" class="btn export-btn">Export Report</button>
+        </div>
+
+        <div class="poll-section">
+            <div class="column">
+                <h2 class="marked-title">Marked</h2>
+                <div id="markedList" class="student-list"></div>
+            </div>
+            <div class="column">
+                <h2 class="not-marked-title">Not Marked</h2>
+                <div id="notMarkedList" class="student-list"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
